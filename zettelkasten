@@ -1,41 +1,117 @@
 #!/bin/sh
 
-# get full path to file
-path=$(realpath $1)
+SCRIPT_NAME=$0
 
-# get title      vvvvvvvvvvvv only first occurrence
-title=$(sed -En '0,/^title: / s/^title: (.*)$/\1/p' < $path)
+error_exit() {
+	echo $(basename $0): ${1:-"Unknown error"} 1>&2
+	exit ${2:-1}
+}
 
-# get raw list of tags
-tags_unsorted=($(sed -En '0,/^tags: / s/^tags: (.*)$/\1/p' < $path))
+print_error() {
+	printf "\033[31;1merror:\033[0m %s\n" "$1"
+}
 
-# check if tags exist
-if [[ -n $tags_unsorted ]]; then
-	# sort 'em
-	tags=($(for i in "${tags_unsorted[@]}"; do echo $i; done | sort))
-	# format them as {"tag1", "tag2", ..., "tagn"}
-	tag_string="{"
-	for i in ${!tags[@]}
-	do
-		tag=${tags[$i]}
-		tag_string="${tag_string}\"${tag}\""
-		[[ $i -lt $((${#tags[@]} - 1)) ]] && tag_string="${tag_string}, "
-	done
-	tag_string="${tag_string}}"
-fi
+ZETTEL_DIR="${HOME}/zettelkasten"
 
-# holy SQL injection, batman!
-# if the user wants to SQL inject their own zettelkasten,
-# quite honestly, that's their prerogative
-# form SQL command string
-if [[ -n $tag_string ]]; then
-	psql_query="INSERT INTO note (title, tags, file)
-	            VALUES ('${title}', '${tag_string}', '${path}')
-				RETURNING id;"
-else
-	psql_query="INSERT INTO note (title, file)
-	            VALUES ('${title}', '${path}')
-				RETURNING id;"
-fi
+# get a note's title from the title: header
+get_title() {
+	# get title     vvvvvvvvvvvv only first occurrence
+	echo $(sed -En '0,/^title: / s/^title: (.*)$/\1/p' < $1)
+}
 
-echo $psql_query | psql -d zettelkasten --no-align --field-separator="" --quiet --tuples-only
+sanitize_filename() {
+	echo "$(echo $1 \
+	        | tr '[:upper:]' '[:lower:]' \
+	        | sed -e 's/ /_/g' \
+	        | sed -e 's/[^0-9a-z_]//g')".md
+}
+
+# ensure a note is valid
+# notes must have a unique title
+validate_note() {
+	local title=$(get_title $1)
+
+	if [[ -z $title ]]; then
+		print_error "no title"
+		print_error "add a title and run ${SCRIPT_NAME} import ${1}"
+		return 1
+	fi
+
+	# sanitize filename
+	local filename=$(sanitize_filename "$title")
+
+	local destination="${ZETTEL_DIR}/${filename}"
+	if [[ -e $destination ]]; then
+		print_error "file ${destination} already exists"
+		print_error "fix title conflict and run ${SCRIPT_NAME} import ${1}"
+		return 1
+	fi
+	return 0
+}
+
+import() {
+	# get full path to file
+	path=$(realpath $1)
+	title=$(get_title $path)
+	
+	# get raw list of tags
+	tags_unsorted=($(sed -En '0,/^tags: / s/^tags: (.*)$/\1/p' < $path))
+	
+	# check if tags exist
+	if [[ -n $tags_unsorted ]]; then
+		# sort 'em
+		tags=($(for i in "${tags_unsorted[@]}"; do echo $i; done | sort))
+		# format them as {"tag1", "tag2", ..., "tagn"}
+		tag_string="{"
+		for i in ${!tags[@]}
+		do
+			tag=${tags[$i]}
+			tag_string="${tag_string}\"${tag}\""
+			[[ $i -lt $((${#tags[@]} - 1)) ]] && tag_string="${tag_string}, "
+		done
+		tag_string="${tag_string}}"
+	fi
+
+	filename=$(sanitize_filename "$title")
+
+	destination="${ZETTEL_DIR}/${filename}"
+	mv $path $destination
+	path=$destination
+	
+	# holy SQL injection, batman!
+	# if the user wants to SQL inject their own zettelkasten,
+	# quite honestly, that's their prerogative
+	# form SQL command string
+	if [[ -n $tag_string ]]; then
+		psql_query="INSERT INTO note (title, tags, file)
+		            VALUES ('${title}', '${tag_string}', '${path}')
+					RETURNING id;"
+	else
+		psql_query="INSERT INTO note (title, file)
+		            VALUES ('${title}', '${path}')
+					RETURNING id;"
+	fi
+	
+	echo $psql_query | psql -d zettelkasten --no-align --field-separator="" --quiet --tuples-only
+}
+
+new() {
+	tmp_path=$(mktemp /tmp/zettelkasten-XXXXXXX)
+	# TODO proper editor handling
+	${EDITOR:=vim} $tmp_path
+
+	validate_note $tmp_path || exit 1
+	import $tmp_path
+}
+
+# TODO proper parameter handling
+# for now just assume the user (me) will use it properly
+case $1 in
+	"new")
+		new
+	;;
+	"import")
+		validate_note $2 || exit 1
+		import $2
+	;;
+esac
