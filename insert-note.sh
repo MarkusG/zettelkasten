@@ -30,10 +30,12 @@ fi
 # form SQL command string
 if [[ -n $tag_string ]]; then
 	psql_query="INSERT INTO note (title, tags, file)
-	            VALUES ('${title}', '${tag_string}', '${path}');"
+	            VALUES ('${title}', '${tag_string}', '${path}')
+				RETURNING id;"
 else
 	psql_query="INSERT INTO note (title, file)
-	            VALUES ('${title}', '${path}');"
+	            VALUES ('${title}', '${path}')
+				RETURNING id;"
 fi
 
-echo $psql_query | psql -d zettelkasten
+echo $psql_query | psql -d zettelkasten --no-align --field-separator="" --quiet --tuples-only
