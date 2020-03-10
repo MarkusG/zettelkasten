@@ -75,7 +75,7 @@ import() {
 	filename=$(sanitize_filename "$title")
 
 	destination="${ZETTEL_DIR}/${filename}"
-	mv $path $destination
+	mv $path $destination || return 1
 	path=$destination
 	
 	# holy SQL injection, batman!
