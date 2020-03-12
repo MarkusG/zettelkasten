@@ -8,7 +8,7 @@ CREATE TABLE note (
 
 CREATE TABLE link (
 	id SERIAL PRIMARY KEY,
-	a_id INTEGER NOT NULL,
-	b_id INTEGER NOT NULL,
+	from_id INTEGER NOT NULL REFERENCES note(id),
+	to_id INTEGER NOT NULL REFERENCES note(id),
 	note TEXT
 );

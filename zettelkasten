@@ -177,6 +177,24 @@ edit() {
 	echo $update_query | psql -d zettelkasten --quiet
 }
 
+link() { # takes id_a, id_b, note; returns link id
+	if [[ -n $3 ]]; then
+		link_query="INSERT INTO link (from_id, to_id, note)
+		            VALUES (${1}, ${2}, '${3}')
+		            RETURNING id;"
+	else
+		link_query="INSERT INTO link (from_id, to_id)
+		            VALUES (${1}, ${2})
+		            RETURNING id;"
+	fi
+
+	echo $link_query | psql -d zettelkasten --no-align --field-separator="" --quiet --tuples-only
+}
+
+note_get_links() { # takes path; returns newline separated list of links
+	sed -En 's/.*\[.*\]\(([0-9]+)\).*/\1/p' < $1
+}
+
 # TODO proper parameter handling
 # for now just assume the user (me) will use it properly
 case $1 in
