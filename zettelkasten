@@ -188,4 +188,5 @@ case $1 in
 	;;
 	"edit") # take note as ID
 		edit $2
+	;;
 esac
