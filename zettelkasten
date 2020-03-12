@@ -68,7 +68,7 @@ import() {
 	# check if tags exist
 	if [[ -n $tags_unsorted ]]; then
 		# sort 'em
-		tags=($(for i in "${tags_unsorted[@]}"; do echo $i; done | sort))
+		tags=($(for i in "${tags_unsorted[@]}"; do echo $i; done | sort -u))
 		# format them as {"tag1", "tag2", ..., "tagn"}
 		tag_string="{"
 		for i in ${!tags[@]}
