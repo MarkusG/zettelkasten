@@ -192,7 +192,7 @@ link() { # takes id_a, id_b, note; returns link id
 }
 
 note_get_links() { # takes path; returns newline separated list of links
-	sed -En 's/.*\[.*\]\(([0-9]+)\).*/\1/p' < $1
+	sed -En 's/.*\[.*\]\(([0-9]+)\).*/\1/p' < $1 | sort -u
 }
 
 # TODO proper parameter handling
